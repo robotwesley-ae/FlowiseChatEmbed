@@ -9,6 +9,25 @@ import { BotMessageTheme, TextInputTheme, UserMessageTheme } from '@/features/bu
 import { Badge } from './Badge'
 import socketIOClient from 'socket.io-client'
 import { Popup } from '@/features/popup'
+import firebase from 'firebase/app';
+import 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+
+
+
+const firebaseConfig = {
+    apiKey: "AIzaSyAuadstRZmZlYNkm5jCDY0bNJn2RTvwLKI",
+    authDomain: "chat-base-2a104.firebaseapp.com",
+    projectId: "chat-base-2a104",
+    storageBucket: "chat-base-2a104.appspot.com",
+    messagingSenderId: "409071018724",
+    appId: "1:409071018724:web:b7bd8a9ec3dce8eff882f1"
+    measurementId: "G-4DT29T3QRK"
+};
+
+
+const app = initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
 type messageType = 'apiMessage' | 'userMessage' | 'usermessagewaiting'
 
@@ -202,19 +221,25 @@ export const Bot = (props: BotProps & { class?: string }) => {
         })
 
         if (data) {
-            if (typeof data === 'object' && data.text && data.sourceDocuments) {
-                if (!isChatFlowAvailableToStream()) {
-                    setMessages((prevMessages) => [
-                        ...prevMessages,
-                        { message: data.text, sourceDocuments: data.sourceDocuments, type: 'apiMessage' }
-                    ])
-                }
-            } else {
-                if (!isChatFlowAvailableToStream()) setMessages((prevMessages) => [...prevMessages, { message: data, type: 'apiMessage' }])
+            const newMessage = typeof data === 'object' && data.text && data.sourceDocuments ?
+                { message: data.text, sourceDocuments: data.sourceDocuments, type: 'apiMessage' } :
+                { message: data, type: 'apiMessage' };
+
+            if (!isChatFlowAvailableToStream()) {
+                setMessages((prevMessages) => [
+                    ...prevMessages,
+                    newMessage
+                ])
             }
             setLoading(false)
             setUserInput('')
             scrollToBottom()
+
+            // Save chat history to Firestore
+            await addDoc(collection(db, 'chatHistory'), {
+                timestamp: serverTimestamp(),
+                messages: [...messages(), newMessage]
+            });
         }
         if (error) {
             console.error(error)
